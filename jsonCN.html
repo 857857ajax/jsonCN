@@ -1,0 +1,121 @@
+<!doctype html>
+<head>
+	<meta charset="utf-8" />
+</head>
+<body>
+	<div>可打开浏览器控制台查看结果</div>
+	<div id="txt">
+
+	</div>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="https://cdn.bootcdn.net/ajax/libs/crypto-js/4.0.0/crypto-js.js"></script>
+	<script type="text/javascript">
+		// https://ai.youdao.com/gw.s 这里申请appKey/key
+		var appKey = 'xxxxx';//
+		var key = 'xxxx'; //注意：暴露appSecret，有被盗用造成损失的风险
+		// 示例JSON对象
+		const sampleJSON = {
+			"openShoping": {
+				"title": "注册店铺",
+				"txt": "通过注册你同意我们的",
+				"fromData": {
+					"other": {
+						"title": "证件图片",
+						"inpPlaceholder": ""
+					},
+					"face_img": {
+						"title": "人脸识别",
+						"inpPlaceholder": ""
+					},
+				},
+			},
+			"shopsSetup": {},
+			"look": {
+				"sendBtn": "发送",
+				"[smile]": "[微笑]",
+				"[colour]": "[色]",
+			},
+		}
+		var from = 'zh-CHS';//原语言
+		var to = 'en';//翻译后的语言
+		var vocabId = '您的用户词表ID';
+		// 使用Ajax请求翻译JSON
+		async function translateJSON(json) {
+			// 递归函数，用于翻译JSON中的文本
+			async function translateObject(obj) {
+				for (const key in obj) {
+					if (typeof obj[key] === 'string') {
+						// 如果当前项是字符串，进行翻译
+						const text = obj[key];
+						const translation = await translateText(text);
+						obj[key] = translation;
+						// 延迟1秒再发送下一个请求
+						await delay(1000);
+					} else if (typeof obj[key] === 'object') {
+						// 如果当前项是对象，递归处理
+						await translateObject(obj[key]);
+					}
+				}
+			}
+			await translateObject(json);
+			// 返回翻译后的JSON
+			return json;
+		}
+		function translateText(text) {
+			var salt = (new Date).getTime();
+			var curtime = Math.round(new Date().getTime() / 1000);
+			var str1 = appKey + truncate(text) + salt + curtime + key;
+			var sign = CryptoJS.SHA256(str1).toString(CryptoJS.enc.Hex);
+			if (text == '') {
+				return ''
+			}
+			return $.ajax({
+					url: 'https://openapi.youdao.com/api',
+					type: 'post',
+					dataType: 'jsonp',
+					data: {
+						q: text,
+						appKey: appKey,
+						salt: salt,
+						from: from,
+						to: to,
+						sign: sign,
+						signType: "v3",
+						curtime: curtime,
+						vocabId: vocabId,
+					}
+				}).then((response) => {
+					if (response && response.translation) {
+						return response.translation[0];
+					} else {
+						throw new Error('翻译失败');
+					}
+				})
+				.catch((error) => {
+					console.error('翻译失败：', error);
+					throw error;
+				});
+
+		}
+		// 延迟函数
+		function delay(ms) {
+			return new Promise((resolve) => setTimeout(resolve, ms));
+		}
+		// 调用翻译函数
+		translateJSON(sampleJSON)
+			.then((translatedJson) => {
+				console.log('翻译后的JSON：', translatedJson);
+				// 翻译完成后将json展示在dom
+				document.getElementById("txt").textContent = JSON.stringify(translatedJson, null, 2);
+			})
+			.catch((error) => {
+				console.error('翻译过程中出错：', error);
+			});
+
+		function truncate(q) {
+			var len = q.length;
+			if (len <= 20) return q;
+			return q.substring(0, 10) + len + q.substring(len - 10, len);
+		}
+	</script>
+</body>
